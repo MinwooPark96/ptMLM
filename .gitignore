@@ -1,7 +1,7 @@
 .DS_Store
 .vector_cache/
 .data/
-models/
+# models/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
