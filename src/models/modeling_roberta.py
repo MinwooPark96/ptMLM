@@ -25,6 +25,10 @@ class RobertaPrompt(RobertaPreTrainedModel):
         
         super().__init__(config)
         self.config = config
+        self.training_args = training_args
+        self.data_args = data_args
+        self.model_args = model_args
+        
         self.model = AutoModelForMaskedLM.from_pretrained(config._name_or_path) # Pretrained MLM model
         self.normal_embedding_layer = self.model.get_input_embeddings() # word embedding layer of the pretrained model
         self.hidden_size = config.hidden_size # e.g. 512, 768, 1024...

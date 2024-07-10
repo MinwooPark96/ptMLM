@@ -105,9 +105,17 @@ def freeze_params(model: nn.Module):
     for p in model.parameters():
         p.requires_grad = False
     
-def get_last_checkpoint(output_dir):
-    if os.path.exists(os.path.join(output_dir, 'pytorch_model.bin')):
-        return output_dir
+# def get_last_checkpoint(output_dir):
+#     if os.path.exists(os.path.join(output_dir, 'pytorch_model.bin')):
+#         return output_dir
+#     return None
+
+def get_last_checkpoint(output_dir: str) -> Optional[str]:
+    """[minwoo] return the checkpoint path if it exists in the output_dir. Otherwise, return None."""
+    if chlist := os.listdir(output_dir):
+        sorted_chlist = sorted(chlist)
+        return os.path.join(output_dir, sorted_chlist[-1])
+    
     return None
 
 #[minwoo] TODO CHECK!!

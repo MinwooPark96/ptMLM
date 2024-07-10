@@ -22,7 +22,7 @@ from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
     5. https://github.com/QC-LY/Prompt-Tuning-For-Sentiment-Classification/blob/main/prompt_bert.py
 """
         
-class BertPrompt(BertPreTrainedModel):
+class BertPrompt(nn.Module):
 
     def __init__(self, 
                 config: PretrainedConfig,
@@ -31,8 +31,12 @@ class BertPrompt(BertPreTrainedModel):
                 data_args: DataTrainingArguments = None,
                 model_args: ModelArguments = None):
         
-        super().__init__(config)
+        super(BertPrompt,self).__init__()
         self.config = config
+        self.training_args = training_args
+        self.data_args = data_args
+        self.model_args = model_args
+
         self.model = AutoModelForMaskedLM.from_pretrained(config._name_or_path) # Pretrained MLM model
         self.normal_embedding_layer = self.model.get_input_embeddings() # word embedding layer of the pretrained model
         self.hidden_size = config.hidden_size # e.g. 512, 768, 1024...
@@ -49,6 +53,7 @@ class BertPrompt(BertPreTrainedModel):
         
         # [minwoo] https://github.com/salesforce/Overture/blob/main/soft_prompts.py -> 초기화 방식 참고.
         if model_args.init_type == 'random':
+            # self.soft_prompts = nn.Parameter(self.soft_prompts, requires_grad=True)  #https://github.com/salesforce/Overture/blob/main/soft_prompts.py
             self.soft_prompt = nn.Parameter(torch.randn(self.pre_seq_len, self.hidden_size)) # [minwoo] size = (pre_seq_len, hidden_size)
         elif model_args.init_type == 'zero':
             self.soft_prompt = nn.Parameter(torch.zeros(self.pre_seq_len, self.hidden_size))
@@ -62,8 +67,6 @@ class BertPrompt(BertPreTrainedModel):
         # [minwoo] freeze model
         freeze_params(self.model)
         
-        # Initialize weights and apply final processing
-        self.post_init()
 
     def get_soft_prompt(self):
         """Return the soft prompt."""
@@ -161,14 +164,21 @@ class BertPrompt(BertPreTrainedModel):
 if __name__ == '__main__':
     
     from utils import print_params_only_requires_grad_true
+    from glue_dataset import GlueDataset
+    from transformers import Trainer
 
-    # python modeling_bert.py --task_name glue --dataset_name qqp --model_name_or_path bert-base-uncased --output_dir ./output
+    # python modeling_bert.py --task_name glue --dataset_name sst2 --model_name_or_path bert-base-uncased --output_dir ./output
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     
     config = AutoConfig.from_pretrained(model_args.model_name_or_path)
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
-        
+    
+    gluedata = GlueDataset(tokenizer = tokenizer,
+        model_args = model_args,
+        data_args = data_args, 
+        training_args = training_args)
+
     model = BertPrompt(
         config = config,
         tokenizer = None,

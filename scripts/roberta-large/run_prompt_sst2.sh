@@ -1,5 +1,5 @@
-dataset_name="?"
-model_name_or_path="?"
+dataset_name="sst2"
+model_name_or_path="roberta-large"
 
 python run_prompt.py   \
     --model_name_or_path $model_name_or_path \
@@ -19,10 +19,3 @@ python run_prompt.py   \
     --pre_seq_len 100 \
     --prompt \
     
-
-
-
-
-
-
-

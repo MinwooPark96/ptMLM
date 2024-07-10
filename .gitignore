@@ -1,6 +1,8 @@
 # minwoo
 notebooks/
 logs/
+wandb/
+output/
 
 .DS_Store
 .vector_cache/

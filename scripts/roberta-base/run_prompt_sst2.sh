@@ -1,5 +1,5 @@
-dataset_name="?"
-model_name_or_path="?"
+dataset_name="sst2"
+model_name_or_path="roberta-base"
 
 python run_prompt.py   \
     --model_name_or_path $model_name_or_path \
