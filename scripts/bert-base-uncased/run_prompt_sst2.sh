@@ -17,7 +17,6 @@ python run_prompt.py   \
     --output_dir ./output/$model_name_or_path/$dataset_name \
     --pad_to_max_length \
     --pre_seq_len 100 \
-    --prompt \
     --save_strategy="no" \
     --evaluation_strategy "epoch"\
     --logging_strategy "epoch"\

@@ -26,7 +26,6 @@ from arguments import DataTrainingArguments, ModelArguments
 [minwoo] source from :" https://github.com/huggingface/transformers/blob/main/examples/pytorch/text-classification/run_glue.py#L71
 """   
 
-wandb.init(project='promptTuning_minwoo')
 logger = logging.getLogger(__name__)
 
 
@@ -51,6 +50,9 @@ logging.basicConfig(
 if training_args.should_log:
     # The default of training_args.log_level is passive, so we set log level at info here to have that default.
     transformers.utils.logging.set_verbosity_info()
+
+if training_args.report_to == 'wandb':
+    wandb.init(project='promptTuning_minwoo')
 
 log_level = training_args.get_process_log_level()
 logger.setLevel(log_level)
@@ -133,7 +135,8 @@ trainer.add_callback(save_prompt_callback)
 
 def main():
     # [minwoo] Checkpoint detecting 하는 부분.
-    last_checkpoint = get_last_checkpoint(training_args.output_dir)
+    last_checkpoint = get_checkpoint(output_dir = training_args.output_dir,
+                                                    resume_from_checkpoint = training_args.resume_from_checkpoint)
     
     if last_checkpoint:
         logger.info(
@@ -151,8 +154,6 @@ def main():
         )
         metrics["train_samples"] = min(max_train_samples, len(gluedata.train_dataset))
 
-        # TODO [minwoo] callback 함수로 주기적으로 저장하도록 구현해야할듯.
-        trainer.save_prompt() 
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
@@ -200,26 +201,8 @@ def main():
         for predict_dataset, dataset_name in zip(predict_datasets, dataset_names):
             # Removing the `label` columns because it contains -1 and Trainer won't like that.
             
-            # predict_dataset = predict_dataset.remove_columns("label")
+            predict_dataset = predict_dataset.remove_columns("label")
             
-            ## [minwoo]
-            metrics = trainer.evaluate(eval_dataset=predict_dataset)
-
-            max_eval_samples = (
-                data_args.max_eval_samples if data_args.max_eval_samples is not None else len(predict_dataset)
-            )
-            metrics["predict_samples"] = min(max_eval_samples, len(eval_dataset))
-
-            if dataset_name == "mnli-mm":
-                metrics = {k + "_mm": v for k, v in metrics.items()}
-            if dataset_name is not None \
-                and "mnli" in dataset_name:
-                combined.update(metrics)
-
-            trainer.log_metrics("predict", metrics)
-            trainer.save_metrics("predict", combined if dataset_name is not None and "mnli" in dataset_name else metrics)
-            ## [\minwoo]
-
             predictions = trainer.predict(predict_dataset, metric_key_prefix="predict").predictions
             predictions = np.squeeze(predictions) if gluedata.is_regression else np.argmax(predictions, axis=1)
 

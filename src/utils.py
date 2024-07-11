@@ -110,11 +110,14 @@ def freeze_params(model: nn.Module):
 #         return output_dir
 #     return None
 
-def get_last_checkpoint(output_dir: str) -> Optional[str]:
+def get_checkpoint(output_dir: str,
+                   resume_from_checkpoint:Optional[str] = None) -> Optional[str]:
     """[minwoo] return the checkpoint path if it exists in the output_dir. Otherwise, return None."""
-    if chlist := os.listdir(output_dir):
-        sorted_chlist = sorted(chlist)
-        return os.path.join(output_dir, sorted_chlist[-1])
+    if file_list := os.listdir(output_dir):
+        if resume_from_checkpoint in file_list:
+            return os.path.join(output_dir, resume_from_checkpoint)
+        checkpoint_list = sorted([checkpoint for checkpoint in file_list if checkpoint.endswith('bin')])
+        return os.path.join(output_dir, checkpoint_list[-1])
     
     return None
 
