@@ -138,7 +138,7 @@ def main():
     last_checkpoint = get_checkpoint(output_dir = training_args.output_dir,
                                                     resume_from_checkpoint = training_args.resume_from_checkpoint)
     
-    if last_checkpoint:
+    if last_checkpoint and not training_args.overwrite_output_dir:
         logger.info(
             f"Checkpoint detected, resuming training at {last_checkpoint}. To avoid this behavior, change "
             "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."

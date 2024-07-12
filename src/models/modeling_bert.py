@@ -89,7 +89,8 @@ class BertPrompt(nn.Module):
         """
 
         batch_size = input_ids.shape[0] #[minwoo] batch_size 가 edge 부분에서 달라질 수 있으므로, 여기서 계산하는 것이 맞음.
-        mask_ids = torch.stack([self.mask_ids for _ in range(batch_size)]).to(input_ids.device)
+        # mask_ids = torch.stack([self.mask_ids for _ in range(batch_size)]).to(input_ids.device)
+        mask_ids = self.mask_ids.expand(batch_size, -1).to(input_ids.device)
         
         # [minwoo] each_embeddings.shape = (batch_size, each , hidden_size)
         mask_embeddings = self.normal_embedding_layer(mask_ids)
