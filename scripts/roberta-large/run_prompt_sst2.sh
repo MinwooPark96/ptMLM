@@ -1,6 +1,6 @@
 dataset_name="sst2"
-model_name_or_path="bert-base-uncased"
-pre_seq_len=5
+model_name_or_path="roberta-large"
+pre_seq_len=100
 
 python run_prompt.py   \
     --model_name_or_path $model_name_or_path \
@@ -10,8 +10,8 @@ python run_prompt.py   \
     --do_eval \
     --do_predict \
     --max_seq_length 128 \
-    --per_device_train_batch_size 64  \
-    --per_device_eval_batch_size 64 \
+    --per_device_train_batch_size 32  \
+    --per_device_eval_batch_size 32 \
     --learning_rate 0.001 \
     --weight_decay 0.0 \
     --num_train_epochs 200 \

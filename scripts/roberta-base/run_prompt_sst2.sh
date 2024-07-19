@@ -1,6 +1,5 @@
 dataset_name="sst2"
-model_name_or_path="bert-base-uncased"
-pre_seq_len=5
+model_name_or_path="roberta-base"
 
 python run_prompt.py   \
     --model_name_or_path $model_name_or_path \
@@ -15,9 +14,9 @@ python run_prompt.py   \
     --learning_rate 0.001 \
     --weight_decay 0.0 \
     --num_train_epochs 200 \
-    --output_dir ./output/$model_name_or_path"_"$pre_seq_len/$dataset_name \
+    --output_dir ./output/$model_name_or_path/$dataset_name \
     --pad_to_max_length \
-    --pre_seq_len $pre_seq_len \
+    --pre_seq_len 100 \
     --save_strategy="no" \
     --evaluation_strategy "epoch"\
     --logging_strategy "epoch"\
