@@ -22,7 +22,7 @@ from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
     5. https://github.com/QC-LY/Prompt-Tuning-For-Sentiment-Classification/blob/main/prompt_bert.py
 """
         
-class BertPrompt(nn.Module):
+class MLMPromptModel(nn.Module):
 
     def __init__(self, 
                 config: PretrainedConfig,
@@ -31,25 +31,40 @@ class BertPrompt(nn.Module):
                 data_args: DataTrainingArguments = None,
                 model_args: ModelArguments = None):
         
-        super(BertPrompt,self).__init__()
+        super(MLMPromptModel,self).__init__()
+        
         self.config = config
         self.training_args = training_args
         self.data_args = data_args
         self.model_args = model_args
 
-        self.model = AutoModelForMaskedLM.from_pretrained(config._name_or_path) # Pretrained MLM model
+        self.model_name = config._name_or_path
+        self.model = AutoModelForMaskedLM.from_pretrained(self.model_name) # Pretrained MLM model
         self.normal_embedding_layer = self.model.get_input_embeddings() # word embedding layer of the pretrained model
         self.hidden_size = config.hidden_size # e.g. 512, 768, 1024...
         self.finetuning_task = config.finetuning_task # It is from data_args.dataset_name. e.g. sst2 
         
         if tokenizer is None: # Do not recommend to use this way!
-            self.tokenizer = AutoTokenizer.from_pretrained(config._name_or_path)
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         else :
             self.tokenizer = tokenizer
             
         self.mask_ids = torch.tensor([self.tokenizer.mask_token_id]) # token for classification. e.g. [MASK]
     
         self.pre_seq_len = model_args.pre_seq_len 
+        
+        bert_uncased_map = {'positive' : 3893,'negative' : 4997,'yes' : 2748,'neutral' : 8699,'no' : 2053,'true' : 2995,'false' : 6270}
+        bert_cased_map = {'positive' : 3112,'negative' : 4366, 'yes' : 4208,'neutral' : 8795,'no' : 1185,'true' : 2276,'false' : 6014}
+        roberta_map = {'positive' : 22173,'negative' : 2430,'yes' : 4420,'neutral' : 7974,'no' : 117,'true' : 1528,'false' : 3950}
+        
+        if self.model_name in ['bert-base-uncased','bert-large-uncased']:
+            self.map = bert_uncased_map
+        elif self.model_name in ['bert-base-cased','bert-large-cased']:
+            self.map = bert_cased_map
+        elif self.model_name in ['roberta-base','roberta-large']:
+            self.map = roberta_map
+        else:
+            raise NotImplementedError(f"[minwoo] word_map for {self.model_name} is not supported yet.")
         
         # [minwoo] https://github.com/salesforce/Overture/blob/main/soft_prompts.py -> 초기화 방식 참고.
         if model_args.init_type == 'random':
@@ -114,39 +129,14 @@ class BertPrompt(nn.Module):
         logits = model_outputs.logits
         mask_logits = logits[:,0]
 
-        """
-        [minwoo] setting of https://aclanthology.org/2022.naacl-main.290.pdf
-            TODO : 
-                I think it is better to utilize 
-                    1. Manual Template? or Pattern?. 
-                    2. Verbalizer?
-                        see PET : https://arxiv.org/abs/2001.07676
-                        
-        SA (Sentiment Analysis)
-            IMDB: positive, negative 
-            SST-2: positive, negative
-                Bert : 3893, 4997
-
-        NLI (Natural Language Inference)**: 
-            MNLI: yes, neutral, no
-                Bert : 2748, 8699, 2053
-    
-    
-        PI (Paraphrase Identification)**:
-            QQP: true, false
-            MRPC: true, false
-                Bert : 2995, 6270
-        
-        """
-
         # [minwoo] score.shape = (batch, Class_num)         
         #   TODO -> https://github.com/DengBoCong/prompt-tuning/blob/master/core/prompt_bert.py#L107 를 참고하여 if else 제거
         if self.finetuning_task in ['sst2', 'imdb']:
-            score = torch.cat([mask_logits[:,3893].unsqueeze(1), mask_logits[:,4997].unsqueeze(1)],dim = 1)
+            score = torch.cat([mask_logits[:,self.map['positive']].unsqueeze(1), mask_logits[:,self.map['negative']].unsqueeze(1)],dim = 1)
         elif self.finetuning_task in ['mnli']:
-            score = torch.cat([mask_logits[:,2748].unsqueeze(1), mask_logits[:,8699].unsqueeze(1), mask_logits[:,2053].unsqueeze(1)],dim = 1)
+            score = torch.cat([mask_logits[:,self.map['yes']].unsqueeze(1), mask_logits[:,self.map['neutral']].unsqueeze(1), mask_logits[:,self.map['no']].unsqueeze(1)],dim = 1)
         elif self.finetuning_task in ['qqp', 'mrpc']:
-            score = torch.cat([mask_logits[:,2995].unsqueeze(1), mask_logits[:,6270].unsqueeze(1)], dim = 1)
+            score = torch.cat([mask_logits[:,self.map['true']].unsqueeze(1), mask_logits[:,self.map['false']].unsqueeze(1)], dim = 1)
         else :
             NotImplementedError(f"[minwoo] {self.finetuning_task} is not supported yet...")
         

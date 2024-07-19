@@ -15,7 +15,7 @@ from transformers.integrations import WandbCallback
  
 from src.glue_dataset import GlueDataset
 from src.utils import *
-from src.models.modeling_bert import BertPrompt
+from src.model import MLMPromptModel
 from src.training import Trainer
 from src.callbacks import SavePromptCallback
 from src.models.model_utils import get_model
@@ -105,8 +105,7 @@ else:
         revision=model_args.model_revision,
     )
 
-model = get_model(
-    model_name = model_args.model_name_or_path,
+model = MLMPromptModel(
     config = config,
     tokenizer = tokenizer,
     training_args = training_args,

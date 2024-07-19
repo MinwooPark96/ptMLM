@@ -1,4 +1,10 @@
-a = ['200_epoch.bin', '100_epoch.bin', '300_epoch.bin', 'prompt.bin']
+from transformers import AutoModel, AutoTokenizer
 
-# 끝이 bin으로 끝나는 파일만 정렬
-print(sorted([i for i in a if i.endswith('bin')]))
+
+if __name__ == '__main__':
+    models = ['bert-base-cased','bert-large-cased','roberta-base','roberta-large','bert-base-uncased','bert-large-uncased']
+    for model_name in models:    
+        model = AutoModel.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+        print(model_name,tokenizer.encode('positive negative yes neutral no true false'))
