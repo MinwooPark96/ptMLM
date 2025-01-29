@@ -26,21 +26,19 @@ class MLMPromptModel(nn.Module):
 
     def __init__(self, 
                 config: PretrainedConfig,
+                pre_seq_len: int,
+                init_type: str = 'random',
                 tokenizer = None,
-                training_args: TrainingArguments = None,
-                data_args: DataTrainingArguments = None,
-                model_args: ModelArguments = None):
+                ):
         
         super(MLMPromptModel,self).__init__()
         
         self.config = config
-        self.training_args = training_args
-        self.data_args = data_args
-        self.model_args = model_args
-
+        
         self.model_name = config._name_or_path
         self.model = AutoModelForMaskedLM.from_pretrained(self.model_name) # Pretrained MLM model
         self.normal_embedding_layer = self.model.get_input_embeddings() # word embedding layer of the pretrained model
+        
         self.hidden_size = config.hidden_size # e.g. 512, 768, 1024...
         self.finetuning_task = config.finetuning_task # It is from data_args.dataset_name. e.g. sst2 
         
@@ -51,11 +49,11 @@ class MLMPromptModel(nn.Module):
             
         self.mask_ids = torch.tensor([self.tokenizer.mask_token_id]) # token for classification. e.g. [MASK]
     
-        self.pre_seq_len = model_args.pre_seq_len 
-        
-        bert_uncased_map = {'positive' : 3893,'negative' : 4997,'yes' : 2748,'neutral' : 8699,'no' : 2053,'true' : 2995,'false' : 6270}
-        bert_cased_map = {'positive' : 3112,'negative' : 4366, 'yes' : 4208,'neutral' : 8795,'no' : 1185,'true' : 2276,'false' : 6014}
-        roberta_map = {'positive' : 22173,'negative' : 2430,'yes' : 4420,'neutral' : 7974,'no' : 117,'true' : 1528,'false' : 3950}
+        self.pre_seq_len = pre_seq_len 
+
+        bert_uncased_map = {'great':2307,'bad':2919,'positive' : 3893,'negative' : 4997,'yes' : 2748,'neutral' : 8699,'no' : 2053,'true' : 2995,'false' : 6270}
+        bert_cased_map = {'great':1632,'bad':2213,'positive' : 3112,'negative' : 4366, 'yes' : 4208,'neutral' : 8795,'no' : 1185,'true' : 2276,'false' : 6014}
+        roberta_map = {'great':12338, 'bad':1099,'positive' : 22173,'negative' : 2430,'yes' : 4420,'neutral' : 7974,'no' : 117,'true' : 1528,'false' : 3950}
         
         if self.model_name in ['bert-base-uncased','bert-large-uncased']:
             self.map = bert_uncased_map
@@ -67,22 +65,20 @@ class MLMPromptModel(nn.Module):
             raise NotImplementedError(f"[minwoo] word_map for {self.model_name} is not supported yet.")
         
         # [minwoo] https://github.com/salesforce/Overture/blob/main/soft_prompts.py -> 초기화 방식 참고.
-        if model_args.init_type == 'random':
+        if init_type == 'random':
             # self.soft_prompts = nn.Parameter(self.soft_prompts, requires_grad=True)  #https://github.com/salesforce/Overture/blob/main/soft_prompts.py
             self.soft_prompt = nn.Parameter(torch.randn(self.pre_seq_len, self.hidden_size)) # [minwoo] size = (pre_seq_len, hidden_size)
-        elif model_args.init_type == 'zero':
+        elif init_type == 'zero':
             self.soft_prompt = nn.Parameter(torch.zeros(self.pre_seq_len, self.hidden_size))
         else:
-            raise NotImplementedError(f"[minwoo] model_args.init_type = {model_args.init_type} is not supported.")
+            raise NotImplementedError(f"[minwoo] init_type = {init_type} is not supported.")
 
-         
         if self.finetuning_task == 'stsb':
             NotImplementedError("[minwoo] STSB task is not supported yet... It is regression task.")
         
         # [minwoo] freeze model
         freeze_params(self.model)
-        
-
+    
     def get_soft_prompt(self):
         """Return the soft prompt."""
         return self.soft_prompt
@@ -133,6 +129,7 @@ class MLMPromptModel(nn.Module):
         #   TODO -> https://github.com/DengBoCong/prompt-tuning/blob/master/core/prompt_bert.py#L107 를 참고하여 if else 제거
         if self.finetuning_task in ['sst2', 'imdb']:
             score = torch.cat([mask_logits[:,self.map['positive']].unsqueeze(1), mask_logits[:,self.map['negative']].unsqueeze(1)],dim = 1)
+            # score = torch.cat([mask_logits[:,self.map['great']].unsqueeze(1), mask_logits[:,self.map['bad']].unsqueeze(1)],dim = 1)
         elif self.finetuning_task in ['mnli']:
             score = torch.cat([mask_logits[:,self.map['yes']].unsqueeze(1), mask_logits[:,self.map['neutral']].unsqueeze(1), mask_logits[:,self.map['no']].unsqueeze(1)],dim = 1)
         elif self.finetuning_task in ['qqp', 'mrpc']:
@@ -155,28 +152,18 @@ class MLMPromptModel(nn.Module):
 if __name__ == '__main__':
     
     from utils import print_params_only_requires_grad_true
-    from glue_dataset import GlueDataset
+    from src.datasets.glue import GlueDataset
     from transformers import Trainer
 
     # python modeling_bert.py --task_name glue --dataset_name sst2 --model_name_or_path bert-base-uncased --output_dir ./output
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
-    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     
-    config = AutoConfig.from_pretrained(model_args.model_name_or_path)
-    tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
+    config = AutoConfig.from_pretrained('bert-base-uncased')
+    tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
     
-    gluedata = GlueDataset(tokenizer = tokenizer,
-        model_args = model_args,
-        data_args = data_args, 
-        training_args = training_args)
-
-    model = BertPrompt(
+    model = MLMPromptModel(
         config = config,
-        tokenizer = None,
-        training_args = training_args,
-        data_args = data_args,
-        model_args = model_args
-        )
+        pre_seq_len = 5)
     
     print_params_only_requires_grad_true(model)
     

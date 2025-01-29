@@ -8,32 +8,28 @@ import numpy as np
 import wandb
 
 from transformers import HfArgumentParser,TrainingArguments
-from transformers import AutoTokenizer, AutoConfig, AutoModelForSequenceClassification, Trainer
+from transformers import AutoTokenizer, AutoConfig, Trainer
 from transformers import set_seed
-from transformers import EarlyStoppingCallback, PrinterCallback, TrainerCallback
-from transformers.integrations import WandbCallback
  
-from src.glue_dataset import GlueDataset
+from src.datasets.glue import GlueDataset
 from src.utils import *
 from src.model import MLMPromptModel
-from src.training import Trainer
+from src.trainer import Trainer
 from src.callbacks import SavePromptCallback
-from src.models.model_utils import get_model
 
 from arguments import DataTrainingArguments, ModelArguments
 
 """
-[minwoo] source from :" https://github.com/huggingface/transformers/blob/main/examples/pytorch/text-classification/run_glue.py#L71
+[minwoo] source from :
+    https://github.com/huggingface/transformers/blob/main/examples/pytorch/text-classification/run_glue.py#L71
+    https://github.com/WHU-ZQH/PANDA/blob/main/p-tuning-v2/run.py
 """   
 
 logger = logging.getLogger(__name__)
 
-
 parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
     
 if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
-    # If we pass only one argument to the script and it's the path to a json file,
-    # let's parse it to get our arguments.
     model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
 else: #[minwoo] bash
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
@@ -43,8 +39,8 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
     datefmt="%m/%d/%Y %H:%M:%S",
     # handlers=[logging.StreamHandler(sys.stdout)],
-    filemode="w",
-    filename=os.path.join('logs', f"log_{model_args.model_name_or_path}_{data_args.dataset_name}.txt")
+    # filemode="w",
+    # filename=os.path.join('logs', f"log_{model_args.model_name_or_path}_{data_args.dataset_name}.txt")
 )
 
 if training_args.should_log:
@@ -134,15 +130,15 @@ trainer.add_callback(save_prompt_callback)
 
 def main():
     # [minwoo] Checkpoint detecting 하는 부분.
-    last_checkpoint = get_checkpoint(output_dir = training_args.output_dir,
-                                                    resume_from_checkpoint = training_args.resume_from_checkpoint)
+    # last_checkpoint = get_checkpoint(output_dir = training_args.output_dir,
+    #                                                 resume_from_checkpoint = training_args.resume_from_checkpoint)
     
-    if last_checkpoint and not training_args.overwrite_output_dir:
-        logger.info(
-            f"Checkpoint detected, resuming training at {last_checkpoint}. To avoid this behavior, change "
-            "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."
-        )
-        trainer.load_prompt(prompt_path = last_checkpoint)
+    # if last_checkpoint and not training_args.overwrite_output_dir:
+    #     logger.info(
+    #         f"Checkpoint detected, resuming training at {last_checkpoint}. To avoid this behavior, change "
+    #         "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."
+    #     )
+    #     trainer.load_prompt(prompt_path = last_checkpoint)
     
     # Training
     if training_args.do_train:
@@ -215,7 +211,6 @@ def main():
                         else:
                             item = gluedata.label_list[item]
                             writer.write(f"{index}\t{item}\n")
-
 
 if __name__ == "__main__":
     main()

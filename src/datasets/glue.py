@@ -1,4 +1,4 @@
-from datasets.load import load_dataset, load_metric
+from datasets.load import load_dataset
 from transformers import (
     AutoTokenizer,
     DataCollatorWithPadding,
@@ -8,6 +8,7 @@ from transformers import (
 import numpy as np
 import logging
 import evaluate
+from typing import Optional
 """
 [minwoo] source from : https://github.com/WHU-ZQH/PANDA/blob/main/p-tuning-v2/tasks/glue/dataset.py
 huggigface run_glue.py : https://github.com/huggingface/transformers/blob/main/examples/pytorch/text-classification/run_glue.py#L71
@@ -27,9 +28,25 @@ task_to_keys = {
 
 logger = logging.getLogger(__name__)
 
-class GlueDataset():
-    def __init__(self, tokenizer: AutoTokenizer, model_args, data_args, training_args) -> None:
+class GlueDataset:
+    def __init__(self, 
+                 dataset_name: Optional[str],
+                 tokenizer: AutoTokenizer,
+                 pad_to_max_length: bool = True,
+                 max_seq_length: int = 128,
+                 do_train: bool = True,
+                 max_train_samples: Optional[int] = None,
+                 do_eval: bool = True,
+                 max_eval_samples: Optional[int] = None,
+                 do_predict: bool = True,
+                 max_predict_samples: Optional[int] = None,
+                 cache_dir: Optional[str] = None,
+                 overwrite_cache: bool = False,
+                 *args,
+                **kwargs
+                 ) -> None:
         """
+        
         [minwoo] args:
             1. tokenizer: AutoTokenizer 
             2. model_args:
@@ -66,12 +83,11 @@ class GlueDataset():
         
         super().__init__()
         
-        raw_datasets = load_dataset("glue", data_args.dataset_name, trust_remote_code=True)
+        raw_datasets = load_dataset("glue", dataset_name, trust_remote_code=True)
         self.tokenizer = tokenizer
-        self.data_args = data_args
         
         #labels
-        self.is_regression = data_args.dataset_name == "stsb" # [minwoo] stsb 는 regression task
+        self.is_regression = dataset_name == "stsb" # [minwoo] stsb 는 regression task
         
         if not self.is_regression:
             self.label_list = raw_datasets["train"].features["label"].names
@@ -81,10 +97,10 @@ class GlueDataset():
             self.num_labels = 1
 
         # Preprocessing the raw_datasets
-        self.sentence1_key, self.sentence2_key = task_to_keys[data_args.dataset_name]
+        self.sentence1_key, self.sentence2_key = task_to_keys[dataset_name]
 
         # Padding strategy
-        if data_args.pad_to_max_length: #[minwoo] 이쪽을 사용하는 듯?
+        if pad_to_max_length: #[minwoo] 이쪽을 사용하는 듯?
             self.padding = "max_length"
         else:
             # We will pad later, dynamically at batch creation, to the max sequence length in each batch
@@ -95,52 +111,50 @@ class GlueDataset():
             self.label2id = {l: i for i, l in enumerate(self.label_list)}
             self.id2label = {id: label for label, id in self.label2id.items()}
 
-        if data_args.max_seq_length > tokenizer.model_max_length:
+        if max_seq_length > tokenizer.model_max_length:
             logger.warning(
-                f"The max_seq_length passed ({data_args.max_seq_length}) is larger than the maximum length for the"
+                f"The max_seq_length passed ({max_seq_length}) is larger than the maximum length for the"
                 f"model ({tokenizer.model_max_length}). Using max_seq_length={tokenizer.model_max_length}."
             )
-        self.max_seq_length = min(data_args.max_seq_length, tokenizer.model_max_length)
+        self.max_seq_length = min(max_seq_length, tokenizer.model_max_length)
 
         raw_datasets = raw_datasets.map(
             self.preprocess_function,
             batched=True,
-            load_from_cache_file = not data_args.overwrite_cache,
+            load_from_cache_file = not overwrite_cache,
             desc="Running tokenizer on dataset",
         )
 
-        if training_args.do_train:
+        if do_train:
             self.train_dataset = raw_datasets["train"]
-            if data_args.max_train_samples is not None:
-                self.train_dataset = self.train_dataset.select(range(data_args.max_train_samples))
+            if max_train_samples is not None:
+                self.train_dataset = self.train_dataset.select(range(max_train_samples))
 
-        if training_args.do_eval:
-            self.eval_dataset = raw_datasets["validation_matched" if data_args.dataset_name == "mnli" else "validation"]
-            if data_args.max_eval_samples is not None:
-                self.eval_dataset = self.eval_dataset.select(range(data_args.max_eval_samples))
+        if do_eval:
+            self.eval_dataset = raw_datasets["validation_matched" if dataset_name == "mnli" else "validation"]
+            if max_eval_samples is not None:
+                self.eval_dataset = self.eval_dataset.select(range(max_eval_samples))
 
-        if training_args.do_predict:
+        if do_predict:
+            self.predict_dataset = raw_datasets["test_matched" if dataset_name == "mnli" else "test"]
             
-            self.predict_dataset = raw_datasets["test_matched" if data_args.dataset_name == "mnli" else "test"]
-            
-            if data_args.max_predict_samples is not None:
-                self.predict_dataset = self.predict_dataset.select(range(data_args.max_predict_samples))
+            if max_predict_samples is not None:
+                self.predict_dataset = self.predict_dataset.select(range(max_predict_samples))
 
         # [minwoo] self.metric = load_metric("glue", data_args.dataset_name) -> warning 수정
-        if data_args.dataset_name is not None:
+        if dataset_name is not None:
             self.metric = evaluate.load("glue", 
-                                        data_args.dataset_name, 
-                                        cache_dir=model_args.cache_dir)
+                                        dataset_name, 
+                                        cache_dir=cache_dir)
         elif self.is_regression:
             self.metric = evaluate.load("mse", 
-                                        cache_dir=model_args.cache_dir)
+                                        cache_dir = cache_dir)
         else:
             self.metric = evaluate.load("accuracy", 
-                                        cache_dir = model_args.cache_dir)
+                                        cache_dir = cache_dir)
         
         # [minwoo] else 는 hf Line 525 보고 추가함.
-
-        if data_args.pad_to_max_length:
+        if pad_to_max_length:
             """
             data_colloar(
                 dataset : Dataset(features : list[list[Any]) 
@@ -149,8 +163,8 @@ class GlueDataset():
             """
             self.data_collator = default_data_collator
         
-        elif training_args.fp16:
-            self.data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8)
+        # elif training_args.fp16:
+            # self.data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8)
             
             """
 	            1.	input_ids: 원래의 텍스트 시퀀스에서 일부 토큰이 [MASK] 토큰으로 대체된 시퀀스입니다.
@@ -165,10 +179,8 @@ class GlueDataset():
         # Tokenize the texts
         args = (
             (examples[self.sentence1_key],) if self.sentence2_key is None else (examples[self.sentence1_key], examples[self.sentence2_key])
-        )
-        
+        )       
         result = self.tokenizer(*args, padding=self.padding, max_length=self.max_seq_length, truncation=True)
-
         return result
     
     """

@@ -13,7 +13,6 @@ sys.path.append('..')
 
 logger = logging.getLogger(__name__)
 
-
 def count_trainable_parameters(model):
     """[minwoo] source from : https://github.com/ZhengxiangShi/PowerfulPromptFT/blob/main/src/model.py#L243"""
     num_params = sum(p.numel() for p in model.parameters())

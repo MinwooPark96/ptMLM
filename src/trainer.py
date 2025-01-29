@@ -5,7 +5,6 @@ from transformers import Trainer as HF_Trainer
 logger = logging.getLogger(__name__)
 
 class Trainer(HF_Trainer):
-    
     def save_prompt(self, output_dir = None, checkpoint_name = None):
         if not output_dir:
             output_dir = self.args.output_dir
